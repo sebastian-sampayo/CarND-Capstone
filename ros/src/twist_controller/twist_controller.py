@@ -13,13 +13,18 @@ class Controller(object):
         
         self.ctr_throttle = PID(throttle_coef.get('p', 0.1),
                                 throttle_coef.get('i', 0.1),
-                                throttle_coef.get('d', 0.1))        
+                                throttle_coef.get('d', 0.1), -1., 1.)        
                                 
-        self.ctr_steering = YawController(steering_coef.get('wheel_base'),
-                                          steering_coef.get('steer_ratio'),
-                                          steering_coef.get('min_speed'), 
-                                          steering_coef.get('max_lat_accel'),
-                                          steering_coef.get('max_steer_angle'))
+        # self.ctr_steering = YawController(steering_coef.get('wheel_base'),
+        #                                   steering_coef.get('steer_ratio'),
+        #                                   steering_coef.get('min_speed'), 
+        #                                   steering_coef.get('max_lat_accel'),
+        #                                   steering_coef.get('max_steer_angle'))
+                                          
+        self.ctr_steering = PID(steering_coef.get('p'),
+                                steering_coef.get('i'),
+                                steering_coef.get('d'))
+                                          
 
     def control(self, target_linear_velocity, target_angular_velocity, current_linear_velocity):
         # TODO: Change the arg, kwarg list to suit your needs
@@ -35,14 +40,15 @@ class Controller(object):
         cte = target_linear_velocity - current_linear_velocity
         
         throttle = self.ctr_throttle.step(cte, sample_time)
-        steering = self.ctr_steering.get_steering(
-            target_linear_velocity, 
-            target_angular_velocity,
-            current_linear_velocity
-        )
+        # steering = self.ctr_steering.get_steering(
+        #     target_linear_velocity, 
+        #     target_angular_velocity,
+        #     current_linear_velocity
+        # )
+        steering = self.ctr_steering.step(target_angular_velocity, sample_time)
         
         # logging
-        rospy.loginfo("Controller::control() - target_linear_velocity: %f, current_linear_velocity: %f, cte: %f, throttle (no cap): %f", target_linear_velocity, current_linear_velocity, cte, throttle)
+        rospy.loginfo("Controller::control() - target_linear_velocity: %f, current_linear_velocity: %f, cte: %f, throttle (no cap): %f, steering: %f, target_angular_v: %f", target_linear_velocity, current_linear_velocity, cte, throttle, steering, target_angular_velocity)
         
         # Cap the throttle
         throttle = min(1.0, max(0.0, throttle))

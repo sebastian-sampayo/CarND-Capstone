@@ -55,14 +55,17 @@ class DBWNode(object):
 
         # TODO: Create `TwistController` object
         throttle_coef = {'p': 0.2, #0.5 
-                         'i': 0.005, #0.05
+                         'i': 0.05, #0.05
                          'd': 9} #0.1
                          
         steering_coef = {'wheel_base': wheel_base, 
                          'steer_ratio': steer_ratio,
                          'min_speed': 0.0,
                          'max_lat_accel': max_lat_accel,
-                         'max_steer_angle': max_steer_angle}
+                         'max_steer_angle': max_steer_angle,
+                         'p': .40, #0.5 
+                         'i': 1, #0.05
+                         'd': 40} #0.1
 
         self.controller = Controller(throttle_coef, steering_coef)
 
