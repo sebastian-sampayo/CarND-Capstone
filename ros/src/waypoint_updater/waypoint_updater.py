@@ -6,7 +6,6 @@ from styx_msgs.msg import Lane, Waypoint
 
 import math
 import tf
-
 '''
 This node will publish waypoints from the car's current position to some `x` distance ahead.
 
@@ -35,24 +34,26 @@ class WaypointUpdater(object):
         # TODO: Add a subscriber for /traffic_waypoint and /obstacle_waypoint below
 
 
-        self.final_waypoints_pub = rospy.Publisher('final_waypoints', Lane, queue_size=1)
+        self.final_waypoints_pub = rospy.Publisher('/final_waypoints', Lane, queue_size=1)
 
         # TODO: Add other member variables you need below
-        self.base_waypoints = None
+        # These are the map base waypoints
+        self.base_waypoints = []
+         
         rospy.spin()
 
     def pose_cb(self, msg):
         # TODO: Implement
-        while not rospy.is_shutdown():
-            waypoints = self.get_final_waypoints(msg)
-            self.publish(waypoints)
-        
+        waypoints = self.calculate_final_waypoints(msg)
+        self.publish(waypoints)
+        rospy.loginfo('WaypointUpdater::pose_cb() - Final Waypoints published')
 
     def waypoints_cb(self, waypoints):
         # TODO: Implement
-        while not self.base_waypoints:
-            self.base_waypoints = waypoints.waypoints 
-        pass
+        # Store map waypoints in a class member
+        # Assumption: base waypoints are published only once in the beginning of the simulation, so this callback runs only once.
+        self.base_waypoints = waypoints.waypoints
+        rospy.loginfo('WaypointUpdater::waypoints_cb() - Base Waypoints loaded')
 
     def traffic_cb(self, msg):
         # TODO: Callback for /traffic_waypoint message. Implement
@@ -75,9 +76,13 @@ class WaypointUpdater(object):
             dist += dl(waypoints[wp1].pose.pose.position, waypoints[i].pose.pose.position)
             wp1 = i
         return dist
-
-    def find_closest_idx(self, msg):
-        return 0
+        
+    def find_closest_waypoint(self, msg):
+        """
+        params: msg, PoseStamped
+        return: closest index
+        """
+        # parse the msg to get ego location
         ego_x = msg.pose.position.x
         ego_y = msg.pose.position.y 
         ort = msg.pose.orientation
@@ -87,40 +92,47 @@ class WaypointUpdater(object):
         min_idx = -1
         min_dist = 999999 
         for i, wp in enumerate(self.base_waypoints):
-            dx = ego_x - wp.pose.pose.position.x 
-            dy = ego_y - wp.pose.pose.position.y
+            dx = wp.pose.pose.position.x - ego_x
+            dy = wp.pose.pose.position.y - ego_y
             
-            # local coordinates
+            # local coordinates of the waypoint wrt the ego
             x_local = dy*math.sin(ego_yaw) + dx*math.cos(ego_yaw)
             y_local = dy*math.cos(ego_yaw) - dx*math.sin(ego_yaw)
 
-            # wheter the car is behind wp
-            is_behind = x_local > 0 and abs(math.atan(x_local/y_local)) <= math.pi/4 
-            if is_behind:
+            # wheter the wp is ahead of the ego
+            is_ahead = x_local > 0 and abs(math.atan2(y_local, x_local)) <= math.pi/4.0
+            if is_ahead:
                 dist = math.sqrt(x_local**2 + y_local**2)
                 if dist < min_dist:
                     min_dist = dist
-                    min_idx = idx
-
+                    min_idx = i
         # logging
+        rospy.loginfo("WaypointUpdater::find_closest_waypoint() - Closest waypoint: %d, current pose.x: %f, current pose.y: %f, closest wp.x: %f, closest wp.y: %f", min_idx, ego_x, ego_y, self.base_waypoints[min_idx].pose.pose.position.x, self.base_waypoints[min_idx].pose.pose.position.y)
+        
         if (min_idx == -1):
             rospy.logerr("WaypointUpdater::find_closest_waypoint() - Closest waypoint not found")
         return min_idx
-
-
-
-    def get_final_waypoints(self, msg):
-        closest_idx = self.find_closest_idx(msg)
-        return self.base_waypoints[closest_idx : closest_idx+LOOKAHEAD_WPS]
-
-
-    def publish(self, wps):
+    
+    def calculate_final_waypoints(self, msg):
+        """
+        params: msg, PostStamped    
+        """
+        # TODO: Design the actual logic for this function after implementing traffic and obstacle detection.
+        closest_idx = self.find_closest_waypoint(msg)
+        # TODO: closest_idx + LOOKAHEAD_WPS could go out of limit. Guard against it and handle that case!
+        waypoints = self.base_waypoints[closest_idx:closest_idx + LOOKAHEAD_WPS]
+        return waypoints
+        
+    def publish(self, waypoints):
+        """
+        Publish waypoints into /final_waypoints topic
+        params: waypoints, List of final waypoints
+        """ 
         lane = Lane()
         lane.header.frame_id = '/world'
         lane.header.stamp = rospy.Time(0)
-        lane.waypoints = wps
+        lane.waypoints = waypoints
         self.final_waypoints_pub.publish(lane)
-
 
 
 if __name__ == '__main__':
