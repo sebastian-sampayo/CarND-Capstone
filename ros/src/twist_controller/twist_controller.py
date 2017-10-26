@@ -20,5 +20,5 @@ class Controller(object):
         # TODO: Change the arg, kwarg list to suit your needs
         err_throttle = self.pid_throttle.step(cte, sample_time)
         # Return throttle, brake, steer
-        return 1.0 - abs(err_throttle), 0.0, -err_steering 
+        return 1.0 - abs(err_throttle), 0.0, 0.0
 
