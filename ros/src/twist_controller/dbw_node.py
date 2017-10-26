@@ -77,8 +77,8 @@ class DBWNode(object):
     def get_velocity(self, msg):
         self.velocity = msg.twist.linear.x 
     
-    def get_cmd_velocity(self, msg):
-        self.twist_cmd = msg.data 
+    def get_cmd(self, msg):
+        self.twist_cmd = msg.twist
 
     def loop(self):
         rate = rospy.Rate(50) # 50Hz
