@@ -54,21 +54,20 @@ class DBWNode(object):
                                          BrakeCmd, queue_size=1)
 
         # TODO: Create `TwistController` object
-        throttle_coef = {'p': 0.1, 
-                         'i': 0.1,
-                         'd': 0.1}
-        steering_coef = {'p': 0.1, 
-                         'i': 0.1,
-                         'd': 0.1}
-        self.controller = Controller(throttle_coef, steering_coef)
+        self.controller = Controller(wheel_base      = wheel_base,
+                                     steer_ratio     = steer_ratio,    
+                                     max_lat_accel   = max_lat_accel,
+                                     max_steer_angle = max_steer_angle)
 
         # TODO: Subscribe to all the topics you need to
         self.dbw_enabled = False
         self.velocity = 0.0
-        self.cmd_velocity = 0.0
+        self.twist_cmd = None 
+
         self.dbw_enabled_sub = rospy.Subscriber('/vehicle/dbw_enabled', Bool, self.check_enabled)
         self.velocity_sub = rospy.Subscriber('/current_velocity', TwistStamped, self.get_velocity)
-        self.twist_cmd_sub = rospy.Subscriber('/twist_cmd', TwistStamped, self.get_cmd_velocity)
+        self.twist_cmd_sub = rospy.Subscriber('/twist_cmd', TwistStamped, self.get_cmd)
+
         self.loop()
 
     
@@ -79,7 +78,7 @@ class DBWNode(object):
         self.velocity = msg.twist.linear.x 
     
     def get_cmd_velocity(self, msg):
-        self.cmd_velocity = msg.twist.linear.x  
+        self.twist_cmd = msg.data 
 
     def loop(self):
         rate = rospy.Rate(50) # 50Hz
