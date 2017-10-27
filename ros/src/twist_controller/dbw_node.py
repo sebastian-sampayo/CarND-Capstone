@@ -63,8 +63,8 @@ class DBWNode(object):
                          'min_speed': 0.0,
                          'max_lat_accel': max_lat_accel,
                          'max_steer_angle': max_steer_angle,
-                         'p': .40, #0.5 
-                         'i': 1, #0.05
+                         'p': 1., #0.5 
+                         'i': 0, #0.05
                          'd': 40} #0.1
 
         self.controller = Controller(throttle_coef, steering_coef)
@@ -93,31 +93,28 @@ class DBWNode(object):
         rate = rospy.Rate(50) # 50Hz
         while not rospy.is_shutdown():
             # TODO: Get predicted throttle, brake, and steering using `twist_controller`
-            # You should only publish the control commands if dbw is enabled
-            # throttle, brake, steering = self.controller.control(<proposed linear velocity>,
-            #                                                     <proposed angular velocity>,
-            #                                                     <current linear velocity>,
-            #                                                     <dbw status>,
-            #                                                     <any other argument you need>)
-            # Refrain from processing None values. This way we wait till the topics have data so that our variables are valid
+
+            # Refrain from processing None values.
+            # This way we wait till the topics have data so that our variables are valid
             is_data_invalid = self.twist_cmd is None or self.current_velocity is None
             if is_data_invalid:
                 continue
                 
-            target_linear_velocity = self.twist_cmd.linear.x
-            target_angular_velocity = self.twist_cmd.angular.z
-            current_linear_velocity = self.current_velocity.linear.x
-            
-            throttle, brake, steering = self.controller.control(
-                target_linear_velocity,
-                target_angular_velocity,
-                current_linear_velocity
-            )
-            
             if self.dbw_enabled:
+                target_linear_velocity = self.twist_cmd.linear.x
+                target_angular_velocity = self.twist_cmd.angular.z
+                current_linear_velocity = self.current_velocity.linear.x
+            
+                throttle, brake, steering = self.controller.control(target_linear_velocity,
+                                                                    target_angular_velocity,
+                                                                    current_linear_velocity)
+            
                 self.publish(throttle, brake, steering)
+
             else:
-                # TODO (test, only do this if strictly necessary): might want to reset controller somehow. May be add a method to reset it from here.
+                # TODO (test, only do this if strictly necessary):
+                # might want to reset controller somehow.
+                # May be add a method to reset it from here.
                 self.controller.reset()
             
             rate.sleep()

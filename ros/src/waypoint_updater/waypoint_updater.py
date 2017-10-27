@@ -100,17 +100,27 @@ class WaypointUpdater(object):
             y_local = dy*math.cos(ego_yaw) - dx*math.sin(ego_yaw)
 
             # wheter the wp is ahead of the ego
-            is_ahead = x_local > 0 and abs(math.atan2(y_local, x_local)) <= math.pi/4.0
+            is_ahead = x_local > 2. # and abs(math.atan2(y_local, x_local)) <= math.pi/4.0
             if is_ahead:
                 dist = math.sqrt(x_local**2 + y_local**2)
                 if dist < min_dist:
                     min_dist = dist
                     min_idx = i
+
         # logging
-        rospy.loginfo("WaypointUpdater::find_closest_waypoint() - Closest waypoint: %d, current pose.x: %f, current pose.y: %f, closest wp.x: %f, closest wp.y: %f", min_idx, ego_x, ego_y, self.base_waypoints[min_idx].pose.pose.position.x, self.base_waypoints[min_idx].pose.pose.position.y)
-        
+        wp_min = self.base_waypoints[min_idx].pose.pose.position 
+        log_msg = ("WaypointUpdater::find_closest_waypoint()\n"  
+                   "Closest waypoint: %d\n"
+                   "ego     x: %f, ego     y: %f\n"
+                   "closest x: %f, closest y: %f\n")%(
+                    min_idx,
+                    ego_x, ego_y, 
+                    wp_min.x, wp_min.y)
+
+        rospy.loginfo(log_msg) 
         if (min_idx == -1):
             rospy.logerr("WaypointUpdater::find_closest_waypoint() - Closest waypoint not found")
+
         return min_idx
     
     def calculate_final_waypoints(self, msg):
