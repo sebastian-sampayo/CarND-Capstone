@@ -100,7 +100,7 @@ class WaypointUpdater(object):
             y_local = dy*math.cos(ego_yaw) - dx*math.sin(ego_yaw)
 
             # wheter the wp is ahead of the ego
-            is_ahead = x_local > 2. # and abs(math.atan2(y_local, x_local)) <= math.pi/4.0
+            is_ahead = x_local > 0. and abs(math.atan2(y_local, x_local)) <= math.pi/4.0
             if is_ahead:
                 dist = math.sqrt(x_local**2 + y_local**2)
                 if dist < min_dist:
