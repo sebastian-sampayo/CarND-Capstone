@@ -3,7 +3,7 @@ import rospy
 from std_msgs.msg import Int32
 from geometry_msgs.msg import PoseStamped, Pose
 from styx_msgs.msg import TrafficLightArray, TrafficLight
-from styx_msgs.msg import Lane
+from styx_msgs.msg import Lane, Waypoint
 from sensor_msgs.msg import Image
 from cv_bridge import CvBridge
 from light_classification.tl_classifier import TLClassifier
@@ -78,7 +78,7 @@ class TLDetector(object):
         """
         self.has_image = True
         self.camera_image = msg
-        light_wp, state = self.process_traffic_lights()
+        stop_line_wp, state = self.process_traffic_lights()
 
         '''
         Publish upcoming red lights at camera frequency.
@@ -91,27 +91,34 @@ class TLDetector(object):
             self.state = state
         elif self.state_count >= STATE_COUNT_THRESHOLD:
             self.last_state = self.state
-            light_wp = light_wp if state == TrafficLight.RED else -1
-            self.last_wp = light_wp
-            self.upcoming_red_light_pub.publish(Int32(light_wp))
+            stop_line_wp = stop_line_wp if state == TrafficLight.RED else -1
+            self.last_wp = stop_line_wp
+            self.upcoming_red_light_pub.publish(Int32(stop_line_wp))
         else:
             self.upcoming_red_light_pub.publish(Int32(self.last_wp))
         self.state_count += 1
         
     # find the local coordinate with car as the origin
     # Minor TODO: <Cleanup> Move this helper function to a library, because it is also used by the WaypointUpdater. Avoid duplicated code.
-    def get_local_coordinates(self, target_pose, ref_pose):
-        delta_x = target_pose.pose.position.x - ref_pose.position.x 
-        delta_y = target_pose.pose.position.y - ref_pose.position.y 
+    def get_ego_local(self, pose):
+        delta_x = pose.pose.position.x - self.pose.pose.position.x 
+        delta_y = pose.pose.position.y - self.pose.pose.position.y 
         x_local = delta_y*math.sin(self.yaw) + delta_x*math.cos(self.yaw)
         y_local = delta_y*math.cos(self.yaw) - delta_x*math.sin(self.yaw)
         return x_local, y_local
+
 
     def get_closest_index(self, waypoints, pose, use_ahead):
         min_idx = -1
         min_dist = 10000
         for i, wp in enumerate(waypoints):
-            x_local, y_local = self.get_local_coordinates(wp.pose, pose)
+            # if we want the are looking for the waypoint ahead, transform to local coordinates, else just use the specified pose
+            x_local, y_local = -1, -1
+            if use_ahead:
+                x_local, y_local = self.get_ego_local(wp.pose)
+            else:
+                x_local = wp.pose.pose.position.x - pose.position.x
+                y_local = wp.pose.pose.position.y - pose.position.y
             dist = math.sqrt(x_local**2 + y_local**2) 
             is_ahead = x_local > 0. and abs(math.atan2(y_local, x_local)) <= math.pi/4.0
             if (not use_ahead) or is_ahead: 
@@ -152,7 +159,20 @@ class TLDetector(object):
         # TODO: when classification is ready, replace it with:
         # return self.light_classifier.get_classification(cv_image)
         return light.state
-
+        
+    def get_stop_line_waypoints(self):
+        # List of positions that correspond to the line to stop in front of for a given intersection
+        stop_line_positions = self.config['stop_line_positions']
+        # Convert it to a waypoints list
+        stop_line_waypoints = []
+        for pos in stop_line_positions:
+            p = Waypoint()
+            p.pose.pose.position.x = pos[0]
+            p.pose.pose.position.y = pos[1]
+            stop_line_waypoints.append(p)
+     
+        return stop_line_waypoints
+        
     def process_traffic_lights(self):
 
         """Finds closest visible traffic light, if one exists, and determines its
@@ -164,25 +184,28 @@ class TLDetector(object):
 
         """
         light = None
-        light_wp = -1
-
-        # List of positions that correspond to the line to stop in front of for a given intersection
-        stop_line_positions = self.config['stop_line_positions']
+        stop_line_wp = -1
+        
         if(self.pose):
             car_position = self.get_closest_waypoint(self.pose.pose)
 
             # find the closest visible traffic light (if one exists)
-            # Get the index in the lights array
-            light_idx = self.get_closest_index(self.lights, self.waypoints[car_position].pose.pose, True) if car_position >= 0 else -1
-
-            # Get the index of the traffic light in the waypoints array
-            light_wp = self.get_closest_index(self.waypoints, self.lights[light_idx].pose.pose, True) if light_idx >= 0 else -1
+            # Get the index of the stop line in the stop line waypoints array
+            stop_line_waypoints = self.get_stop_line_waypoints()
+            stop_line_idx = self.get_closest_index(stop_line_waypoints, self.pose.pose, True) if car_position >= 0 else -1
+            stop_line = stop_line_waypoints[stop_line_idx].pose.pose
             
+            # Get the index of the stop line in the waypoints array
+            stop_line_wp = self.get_closest_index(self.waypoints, stop_line, False) if stop_line_idx >= 0 else -1
+            
+            # Get the index in the lights array
+            light_idx = self.get_closest_index(self.lights, self.pose.pose, True) if car_position >= 0 else -1
+
             # logging
-            rospy.loginfo('TLDetector::process_traffic_lights() - car_position: %d, light_idx: %d, light_wp: %d', car_position, light_idx, light_wp)
+            rospy.loginfo('TLDetector::process_traffic_lights() - car_position: %d, light_idx: %d, stop_line_wp: %d', car_position, light_idx, stop_line_wp)
 
             # Have we found a traffic light?
-            light = self.lights[light_idx] 
+            light = self.lights[light_idx] if light_idx >= 0 else None
 
         state = TrafficLight.UNKNOWN
         if light:
@@ -190,7 +213,7 @@ class TLDetector(object):
             rospy.loginfo('TLDetector::process_traffic_lights() - light_state: %s', self.log_string[state])
 
 
-        return light_wp, state
+        return stop_line_wp, state
 
 if __name__ == '__main__':
     try:
