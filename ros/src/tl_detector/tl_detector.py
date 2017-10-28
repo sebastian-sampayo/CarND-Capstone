@@ -100,19 +100,18 @@ class TLDetector(object):
         
     # find the local coordinate with car as the origin
     # Minor TODO: <Cleanup> Move this helper function to a library, because it is also used by the WaypointUpdater. Avoid duplicated code.
-    def get_ego_local(self, pose):
-        delta_x = pose.pose.position.x - self.pose.pose.position.x 
-        delta_y = pose.pose.position.y - self.pose.pose.position.y 
+    def get_local_coordinates(self, target_pose, ref_pose):
+        delta_x = target_pose.pose.position.x - ref_pose.position.x 
+        delta_y = target_pose.pose.position.y - ref_pose.position.y 
         x_local = delta_y*math.sin(self.yaw) + delta_x*math.cos(self.yaw)
         y_local = delta_y*math.cos(self.yaw) - delta_x*math.sin(self.yaw)
         return x_local, y_local
-
 
     def get_closest_index(self, waypoints, pose, use_ahead):
         min_idx = -1
         min_dist = 10000
         for i, wp in enumerate(waypoints):
-            x_local, y_local = self.get_ego_local(wp.pose)
+            x_local, y_local = self.get_local_coordinates(wp.pose, pose)
             dist = math.sqrt(x_local**2 + y_local**2) 
             is_ahead = x_local > 0. and abs(math.atan2(y_local, x_local)) <= math.pi/4.0
             if (not use_ahead) or is_ahead: 
@@ -173,15 +172,14 @@ class TLDetector(object):
             car_position = self.get_closest_waypoint(self.pose.pose)
 
             # find the closest visible traffic light (if one exists)
-            rospy.loginfo('TLDetector::process_traffic_lights() - car_position: %d', car_position)
-
             # Get the index in the lights array
             light_idx = self.get_closest_index(self.lights, self.waypoints[car_position].pose.pose, True) if car_position >= 0 else -1
-            rospy.loginfo('TLDetector::process_traffic_lights() - light_idx: %d', light_idx)
 
             # Get the index of the traffic light in the waypoints array
             light_wp = self.get_closest_index(self.waypoints, self.lights[light_idx].pose.pose, True) if light_idx >= 0 else -1
-            rospy.loginfo('TLDetector::process_traffic_lights() - light_wp: %d', light_wp)
+            
+            # logging
+            rospy.loginfo('TLDetector::process_traffic_lights() - car_position: %d, light_idx: %d, light_wp: %d', car_position, light_idx, light_wp)
 
             # Have we found a traffic light?
             light = self.lights[light_idx] 
