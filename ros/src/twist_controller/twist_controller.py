@@ -62,7 +62,7 @@ class Controller(object):
         # TODO (test this, only change it if strictly necessary): brake should be calculated as a function of weight, acceleration and wheel radius. For now we are using this simple formula:
         brake = 0.0
         if cte < 0:
-            brake = -15*cte
+            brake = -100*cte
             throttle = 0.0
             
         # Return throttle, brake, steer
